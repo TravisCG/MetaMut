@@ -8,7 +8,7 @@
 #define GENOMSIZE        MAXMETACIRCLE * 3
 #define POPULATIONSIZE   20
 #define WINNERSIZE       10
-#define GENERATIONNUM    200
+#define GENERATIONNUM    20
 #define SCREENWIDTH      1280
 #define SCREENHEIGHT     720
 #define MUTNUM           3
@@ -42,15 +42,38 @@ void readpbm(char *filename){
 	fclose(pbm);
 }
 
+void savepbm(){
+	FILE *pbm;
+	int i;
+
+	pbm = fopen("out.pbm", "w");
+	fprintf(pbm, "P1\n1280 720\n");
+	for(i = 0; i < SCREENWIDTH * SCREENHEIGHT; i++){
+		fprintf(pbm, "%d", screen[i]);
+		if( (i + 1) % 70 == 0){
+			fprintf(pbm, "\n");
+		}
+	}
+	fclose(pbm);
+}
+
 void fill(Genome genome){
 	int i,j,k;
 	double sum, inters = 0.0;
 
+	#pragma omp parallel for
 	for(i = 0; i < SCREENWIDTH; i++){
 		for(j = 0; j < SCREENHEIGHT; j++){
 			sum = 0.0;
 			for(k = 0; k < MAXMETACIRCLE; k++){
 				sum += (double)genome.genes[k * 3 + 2] / sqrt( ((i - genome.genes[k * 3])*(i - genome.genes[k * 3])) + ((j - genome.genes[k * 3 + 1])*(j - genome.genes[k * 3 + 1])) );
+			}
+
+			if(sum > 1.0){
+				screen[j * SCREENWIDTH + i] = 1;
+			}
+			else{
+				screen[j * SCREENWIDTH + i] = 0;
 			}
 
 			if( (sum > 1.0 && pattern[j * SCREENWIDTH + i] == 1) || 
@@ -82,6 +105,10 @@ void select_best(){
 
 	for(i = 0; i < POPULATIONSIZE; i++){
 		fill(population[i]);
+		if(population[i].fitness > 0.9){
+			savepbm();
+			exit(0);
+		}
 		printf("%f\n", population[i].fitness);
 	}
 
