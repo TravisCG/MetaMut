@@ -3,15 +3,15 @@
 #include <string.h>
 #include <math.h>
 
-#define MAXMETACIRCLE    60
-#define MAXRADIUS        200
+#define MAXMETACIRCLE    40
+#define MAXRADIUS        20
 #define GENOMSIZE        MAXMETACIRCLE * 3
-#define POPULATIONSIZE   20
-#define WINNERSIZE       10
-#define GENERATIONNUM    20
+#define POPULATIONSIZE   100
+#define WINNERSIZE       5
+#define GENERATIONNUM    100
 #define SCREENWIDTH      1280
 #define SCREENHEIGHT     720
-#define MUTNUM           3
+#define MUTNUM           40
 
 typedef struct _Genome {
 	double fitness;
@@ -45,8 +45,11 @@ void readpbm(char *filename){
 void savepbm(){
 	FILE *pbm;
 	int i;
+	char filename[20];
 
-	pbm = fopen("out.pbm", "w");
+	sprintf(filename, "%f.pbm", drand48());
+
+	pbm = fopen(filename, "w");
 	fprintf(pbm, "P1\n1280 720\n");
 	for(i = 0; i < SCREENWIDTH * SCREENHEIGHT; i++){
 		fprintf(pbm, "%d", screen[i]);
@@ -57,59 +60,67 @@ void savepbm(){
 	fclose(pbm);
 }
 
-void fill(Genome genome){
-	int i,j,k;
-	double sum, inters = 0.0;
+void fill(Genome *genome){
+	int i,j,k, index;
+	double sum, inters = 0.0, unio = 0.0;
 
 	#pragma omp parallel for
 	for(i = 0; i < SCREENWIDTH; i++){
 		for(j = 0; j < SCREENHEIGHT; j++){
 			sum = 0.0;
 			for(k = 0; k < MAXMETACIRCLE; k++){
-				sum += (double)genome.genes[k * 3 + 2] / sqrt( ((i - genome.genes[k * 3])*(i - genome.genes[k * 3])) + ((j - genome.genes[k * 3 + 1])*(j - genome.genes[k * 3 + 1])) );
+				sum += (double)genome->genes[k * 3 + 2] / sqrt( ((i - genome->genes[k * 3])*(i - genome->genes[k * 3])) + ((j - genome->genes[k * 3 + 1])*(j - genome->genes[k * 3 + 1])) );
 			}
 
+			index = j * SCREENWIDTH + i;
 			if(sum > 1.0){
-				screen[j * SCREENWIDTH + i] = 1;
+				screen[index] = 1;
 			}
 			else{
-				screen[j * SCREENWIDTH + i] = 0;
+				screen[index] = 0;
 			}
 
-			if( (sum > 1.0 && pattern[j * SCREENWIDTH + i] == 1) || 
-			    (sum < 1.0 && pattern[j * SCREENWIDTH + i] == 0) ){
+			if(pattern[index] == 1 && screen[index] == 1){
 				inters++;
 			}
-	
+			if(pattern[index] == 1 || screen[index] == 1){
+				unio++;
+			}
 		}
 	}
 
-	genome.fitness = inters / (double)(SCREENWIDTH * SCREENHEIGHT);
+	genome->fitness = inters / unio;
+	if(genome->fitness > 0.9){
+		printf("inters: %f\nunion: %f\n", inters, unio);
+	}
 }
 
+/*OBSOLOTE, for optimization purposes, I put the calculation into fill() */
 double jaccard(){
-	int i, inters = 0;
+	int i, inters = 0, unio = 0;
 
 	for(i = 0; i < SCREENWIDTH * SCREENHEIGHT; i++){
-		if(screen[i] == pattern[i]){
+		if(screen[i] == 1 && pattern[i] == 1){
 			inters++;
+		}
+		if(screen[i] == 1 || pattern[i] == 1){
+			unio++;
 		}
 	}
 
-	return((double)inters / (double)(SCREENWIDTH * SCREENHEIGHT));
+	return((double)inters / (double)unio);
 }
 
-void select_best(){
+void select_best(int gnum){
 	int i,minindex,j;
 	double min = 1.0;
 
 	for(i = 0; i < POPULATIONSIZE; i++){
-		fill(population[i]);
-		if(population[i].fitness > 0.9){
+		fill(&population[i]);
+		if(i == 5){
 			savepbm();
-			exit(0);
 		}
-		printf("%f\n", population[i].fitness);
+		printf("%d\t%f\n", gnum, population[i].fitness); //for some statistics
 	}
 
 	for(i = 0; i < WINNERSIZE; i++){
@@ -177,7 +188,7 @@ int main(int argc, char **argv){
 	readpbm(argv[1]);
 
 	for(i = 0; i < GENERATIONNUM; i++){
-		select_best();
+		select_best(i);
 		newpopulation();
 		mutation();
 	}
