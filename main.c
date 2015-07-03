@@ -42,12 +42,12 @@ void readpbm(char *filename){
 	fclose(pbm);
 }
 
-void savepbm(){
+void savepbm(int prefix){
 	FILE *pbm;
 	int i;
 	char filename[20];
 
-	sprintf(filename, "%f.pbm", drand48());
+	sprintf(filename, "%d.pbm", prefix);
 
 	pbm = fopen(filename, "w");
 	fprintf(pbm, "P1\n1280 720\n");
@@ -112,14 +112,11 @@ double jaccard(){
 }
 
 void select_best(int gnum){
-	int i,minindex,j;
-	double min = 1.0;
+	int i,minindex,j, maxindex;
+	double min = 1.0, max = 0.0;
 
 	for(i = 0; i < POPULATIONSIZE; i++){
 		fill(&population[i]);
-		if(i == 5){
-			savepbm();
-		}
 		printf("%d\t%f\n", gnum, population[i].fitness); //for some statistics
 	}
 
@@ -128,6 +125,10 @@ void select_best(int gnum){
 		if(winnerpop[i].fitness < min){
 			min = winnerpop[i].fitness;
 			minindex = i;
+		}
+		if(population[i].fitness > max){
+			max = population[i].fitness;
+			maxindex = i;
 		}
 	}
 
@@ -142,7 +143,14 @@ void select_best(int gnum){
 				}
 			}
 		}
+		if(population[i].fitness > max){
+			max = population[i].fitness;
+			maxindex = i;
+		}
 	}
+
+	fill(&population[maxindex]);
+	savepbm(gnum);
 }
 
 void newpopulation(){
